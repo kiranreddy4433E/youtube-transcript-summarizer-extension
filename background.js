@@ -1,9 +1,11 @@
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "summarize") {
+    // Get user preferences from chrome.storage.local
     chrome.storage.local.get(["platform", "prompt"], (data) => {
       const platform = data.platform || "chatgpt";
       const prompt = data.prompt || "Summarize this video: [transcript]";
 
+      // Ask content.js to fetch the YouTube transcript
       chrome.tabs.sendMessage(sender.tab.id, { action: "getTranscript" }, (response) => {
         if (chrome.runtime.lastError || !response || !response.transcript) {
           console.error("Error getting transcript.");
@@ -14,6 +16,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const finalPrompt = prompt.replace("[transcript]", transcript);
         let url = "";
 
+        // Determine which AI platform to use
         switch (platform.toLowerCase()) {
           case "chatgpt":
             url = "https://chat.openai.com/";
@@ -32,26 +35,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         // Open the AI platform in a new tab
         chrome.tabs.create({ url });
 
-        // For ChatGPT and Gemini, copy the prompt to clipboard and notify the user
+        // For ChatGPT and Gemini, send prompt to content script to copy it
         if (platform.toLowerCase() !== "claude") {
-          navigator.clipboard.writeText(finalPrompt).then(() => {
-            setTimeout(() => {
-              chrome.notifications.create({
-                type: "basic",
-                iconUrl: "icon.png",
-                title: "Prompt Copied!",
-                message: `Go to ${platform} and paste the prompt (Ctrl+V).`
-              });
-            }, 500);
-          }).catch(() => {
-            setTimeout(() => {
-              chrome.notifications.create({
-                type: "basic",
-                iconUrl: "icon.png",
-                title: "Clipboard Error",
-                message: "Could not copy to clipboard. Please do it manually."
-              });
-            }, 500);
+          chrome.tabs.sendMessage(sender.tab.id, {
+            action: "copyToClipboard",
+            text: finalPrompt,
+            platform: platform
           });
         }
       });
