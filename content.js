@@ -2,7 +2,6 @@ function createSidebar(transcriptText = "Transcript will appear here...") {
   let sidebar = document.getElementById("yt-transcript-sidebar");
   if (sidebar) return;
 
-  // Sidebar container
   sidebar = document.createElement("div");
   sidebar.id = "yt-transcript-sidebar";
   sidebar.style.position = "fixed";
@@ -20,7 +19,6 @@ function createSidebar(transcriptText = "Transcript will appear here...") {
   sidebar.style.borderRadius = "8px";
   sidebar.style.border = "1px solid #ccc";
 
-  // Close button
   const closeBtn = document.createElement("button");
   closeBtn.innerText = "×";
   closeBtn.style.position = "absolute";
@@ -33,13 +31,11 @@ function createSidebar(transcriptText = "Transcript will appear here...") {
   closeBtn.title = "Close";
   closeBtn.onclick = () => sidebar.remove();
 
-  // Transcript content
   const transcriptDiv = document.createElement("div");
   transcriptDiv.id = "transcript-text";
   transcriptDiv.innerText = transcriptText;
   transcriptDiv.style.marginTop = "20px";
 
-  // Copy button
   const copyBtn = document.createElement("button");
   copyBtn.innerText = "Copy Transcript";
   copyBtn.style.marginTop = "10px";
@@ -56,7 +52,6 @@ function createSidebar(transcriptText = "Transcript will appear here...") {
       .catch(() => alert("Failed to copy transcript."));
   };
 
-  // Append everything
   sidebar.appendChild(closeBtn);
   sidebar.appendChild(transcriptDiv);
   sidebar.appendChild(copyBtn);
@@ -87,7 +82,7 @@ function addSummarizeButton() {
   document.body.appendChild(btn);
 }
 
-// Handle transcript requests
+// Handle transcript requests and messages from background.js
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "getTranscript") {
     const transcriptElements = document.querySelectorAll(
@@ -136,9 +131,33 @@ Note: Not all videos have transcripts or captions.
 
     sendResponse({ transcript });
   }
+
+  // Handle summary display from background.js
+  if (request.action === "showSummary") {
+    const sidebar = document.getElementById("yt-transcript-sidebar");
+    const summary = `AI Summary:\n\n${request.summary}`;
+    if (sidebar) {
+      const transcriptText = sidebar.querySelector("#transcript-text");
+      if (transcriptText) transcriptText.innerText = summary;
+      else sidebar.innerText = summary;
+    } else {
+      createSidebar(summary);
+    }
+  }
+
+  // Handle prompt copy request from background.js
+  if (request.action === "copyToClipboard") {
+    navigator.clipboard.writeText(request.text)
+      .then(() => {
+        alert(`✅ Prompt copied! Go to ${request.platform} and paste it (Ctrl+V).`);
+      })
+      .catch(() => {
+        alert("❌ Failed to copy prompt. Please copy manually.");
+      });
+  }
 });
 
-// OPTIONAL: Try to auto-click the "Show transcript" button
+// Try to auto-open YouTube transcript panel
 function tryAutoOpenTranscript() {
   const moreMenuBtn = document.querySelector('tp-yt-paper-icon-button[aria-label="More actions"]');
   if (moreMenuBtn) {
@@ -146,14 +165,12 @@ function tryAutoOpenTranscript() {
     setTimeout(() => {
       const transcriptBtn = Array.from(document.querySelectorAll("ytd-menu-service-item-renderer"))
         .find(el => el.innerText.toLowerCase().includes("transcript"));
-      if (transcriptBtn) {
-        transcriptBtn.click();
-      }
+      if (transcriptBtn) transcriptBtn.click();
     }, 500);
   }
 }
 
-// Initialize sidebar and button
+// Initialize
 createSidebar();
 addSummarizeButton();
 setTimeout(tryAutoOpenTranscript, 2000);
